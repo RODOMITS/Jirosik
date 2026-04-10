@@ -25,6 +25,7 @@ TEXT_REPLY_CHANCE = 0.1
 PHOTO_REPLY_CHANCE = 0.2
 MAX_MEMORY = 15
 chat_memory = []
+active_users = {}
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TG_TOKEN)
@@ -126,12 +127,35 @@ async def handle_photo(message: Message):
 async def handle_text(message: Message):
     if message.text.startswith("/"): return
     
-    chat_name = message.chat.title or "Личка"
-    user_name = message.from_user.first_name
-    text_lower = message.text.lower()
+    user_id = message.from_user.id
+    # Сохраняем ник (с собачкой) или имя, если ника нет
+    user_name = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
     
-    # 1. Информативный лог в консоль
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [{chat_name}] {user_name}: {message.text[:50]}...")
+    # Запоминаем юзера в список активных в этом чате
+    active_users[user_id] = user_name
+
+    text_lower = message.text.lower()
+
+    # --- ЛОГИКА "КТО [ЧТО-ТО]" ---
+    # Проверяем, начинается ли сообщение с обращения к Жиросику (или просто "кто")
+    # и содержит ли оно слово "кто"
+    is_named = any(name in text_lower for name in NAMES_LIST)
+    
+    if "кто" in text_lower and (is_named or message.chat.type == "private" or random.random() < 0.3):
+        # Очищаем текст от имени бота и слова "кто", чтобы получить саму фразу
+        phrase = text_lower
+        for name in NAMES_LIST:
+            phrase = phrase.replace(name, "")
+        phrase = phrase.replace("кто", "").strip().replace("?", "")
+
+        if phrase and active_users:
+            # Выбираем случайного из тех, кто писал
+            random_user = random.choice(list(active_users.values()))
+            
+            # Если фраза не пустая, отвечаем
+            reply = f"кажись {random_user} {phrase}"
+            await message.reply(reply)
+            return # Чтобы он не отвечал на это же сообщение через Gemini
 
     # Запоминаем в память
     chat_memory.append(f"{user_name}: {message.text}")
