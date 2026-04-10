@@ -34,7 +34,8 @@ dp = Dispatcher()
 BASE_PROMPT = (
     "ты жиросик, дерзкий чел. пиши мелкими буквами, без точек. "
     "отвечай коротко. если к тебе обращаются по имени, можешь подстебать. "
-    "не будь занудой, общайся как в обычном чате."
+    "не будь занудой, общайся как в обычном чате. "
+    "используй XD, скобки ( ))), ( ) и другие штучки по типу смайликов из символа"
 )
 
 LORE = (
@@ -82,6 +83,27 @@ async def ask_gemini_vision(image_data: io.BytesIO, user_name: str, caption: str
         return "чё это за мазня"
 
 # --- ХЕНДЛЕРЫ ---
+
+@dp.message(F.text == "/start")
+async def cmd_start(message: Message):
+    # 1. Текст приветствия
+    welcome_text = (
+        "привет, я жиросик. добавь меня в чат и дай админку, "
+        "буду имбово общаться с вами и наводить веселуху)) XDDD"
+    )
+    
+    # 2. Создаем кнопку с глубокой ссылкой (замени @Jirosik_bot на своего, если имя другое)
+    # Ссылка формата tg://resolve?domain=Бот&startgroup=true открывает выбор групп
+    builder = tg_types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            tg_types.InlineKeyboardButton(
+                text="➕ Добавить Жиросика в чат", 
+                url=f"https://t.me/{BOT_USERNAME.replace('@', '')}?startgroup=true"
+            )
+        ]
+    ])
+    
+    await message.answer(welcome_text, reply_markup=builder)
 
 @dp.message(F.photo)
 async def handle_photo(message: Message):
