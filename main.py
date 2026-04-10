@@ -10,7 +10,7 @@ from aiogram.types import Message, ContentType
 from aiogram.utils.chat_action import ChatActionSender
 
 # --- НАСТРОЙКИ ---
-TG_TOKEN = "8676041970:AAGAwzt04pKwPL7CNmxT7wJqo-9rn4_5CnE"
+TG_TOKEN = "8676041970:AAHPOMxD96-VsEvXWr-HB5tY_iWEbbEp0nE"
 NEW_API_KEY = "sk-REl1PPrPA0NMfYUvwFajyA"
 BOT_USERNAME = "@Jirosik_bot" 
 
