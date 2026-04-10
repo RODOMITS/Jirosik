@@ -20,12 +20,14 @@ client = genai.Client(
 )
 
 MODEL_ID = "gemini-2.0-flash-lite"
-NAMES_LIST = ["жиросик", "жиробас", "жирный"] # Добавляй сколько хочешь
+NAMES_LIST = ["жиросик", "жиробас", "жирный"] 
 TEXT_REPLY_CHANCE = 0.1
 PHOTO_REPLY_CHANCE = 0.2
 MAX_MEMORY = 15
-chat_memory = []
-active_users = {}
+
+# ИСПРАВЛЕНО: Теперь это словари {chat_id: данные}
+chat_memories = {}  
+active_users_by_chat = {} 
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TG_TOKEN)
@@ -86,14 +88,11 @@ async def ask_gemini_vision(image_data: io.BytesIO, user_name: str, caption: str
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    # 1. Текст приветствия
     welcome_text = (
         "привет, я жиросик. добавь меня в чат и дай админку, "
         "буду имбово общаться с вами и наводить веселуху)) XDDD"
     )
     
-    # 2. Создаем кнопку с глубокой ссылкой (замени @Jirosik_bot на своего, если имя другое)
-    # Ссылка формата tg://resolve?domain=Бот&startgroup=true открывает выбор групп
     builder = tg_types.InlineKeyboardMarkup(inline_keyboard=[
         [
             tg_types.InlineKeyboardButton(
@@ -107,10 +106,7 @@ async def cmd_start(message: Message):
 
 @dp.message(F.photo)
 async def handle_photo(message: Message):
-    chat_name = message.chat.title or "Личка"
     user_name = message.from_user.first_name
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [{chat_name}] {user_name} скинул фото. смотрю...")
-    
     if random.random() < PHOTO_REPLY_CHANCE:
         async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
             photo = message.photo[-1]
@@ -120,73 +116,69 @@ async def handle_photo(message: Message):
             
             reply = await ask_gemini_vision(file_in_memory, user_name, message.caption)
             if reply:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [ОТВЕТ] {reply}")
                 await message.reply(reply)
 
 @dp.message(F.text)
 async def handle_text(message: Message):
     if message.text.startswith("/"): return
     
+    chat_id = message.chat.id
     user_id = message.from_user.id
-    # Сохраняем ник (с собачкой) или имя, если ника нет
     user_name = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
     
-    # Запоминаем юзера в список активных в этом чате
-    active_users[user_id] = user_name
+    # ИСПРАВЛЕНО: Инициализируем данные для конкретного чата
+    if chat_id not in active_users_by_chat:
+        active_users_by_chat[chat_id] = {}
+    if chat_id not in chat_memories:
+        chat_memories[chat_id] = []
+
+    # Запоминаем юзера ТОЛЬКО в этом чате
+    active_users_by_chat[chat_id][user_id] = user_name
 
     text_lower = message.text.lower()
+    is_named = any(name in text_lower for name in NAMES_LIST)
 
     # --- ЛОГИКА "КТО [ЧТО-ТО]" ---
-    # Проверяем, начинается ли сообщение с обращения к Жиросику (или просто "кто")
-    # и содержит ли оно слово "кто"
-    is_named = any(name in text_lower for name in NAMES_LIST)
-    
     if "кто" in text_lower and (is_named or message.chat.type == "private" or random.random() < 0.3):
-        # Очищаем текст от имени бота и слова "кто", чтобы получить саму фразу
         phrase = text_lower
         for name in NAMES_LIST:
             phrase = phrase.replace(name, "")
         phrase = phrase.replace("кто", "").strip().replace("?", "")
 
-        if phrase and active_users:
-            # Выбираем случайного из тех, кто писал
-            random_user = random.choice(list(active_users.values()))
-            
-            # Если фраза не пустая, отвечаем
-            reply = f"кажись {random_user} {phrase}"
-            await message.reply(reply)
-            return # Чтобы он не отвечал на это же сообщение через Gemini
+        # Берем рандомного юзера ТОЛЬКО из этого чата
+        current_chat_users = active_users_by_chat[chat_id]
+        if phrase and current_chat_users:
+            random_user = random.choice(list(current_chat_users.values()))
+            await message.reply(f"кажись {random_user} {phrase}")
+            return
 
-    # Запоминаем в память
-    chat_memory.append(f"{user_name}: {message.text}")
-    if len(chat_memory) > MAX_MEMORY: chat_memory.pop(0)
+    # Запоминаем в память ТОЛЬКО этого чата
+    chat_memories[chat_id].append(f"{user_name}: {message.text}")
+    if len(chat_memories[chat_id]) > MAX_MEMORY:
+        chat_memories[chat_id].pop(0)
 
-    # 2. Умные реакции
+    # Реакции
     trigger_words = {"база": "🔥", "кринж": "🤮", "пон": "👍", "жиза": "💯"}
     for word, emo in trigger_words.items():
         if word in text_lower:
             await message.react([tg_types.ReactionTypeEmoji(emoji=emo)])
             break
 
-    # 3. Условия ответа (Пинг, Имя или Рандом)
+    # Условия ответа
     is_pinged = BOT_USERNAME.lower() in text_lower or (message.reply_to_message and message.reply_to_message.from_user.id == bot.id)
-    is_named = any(name in text_lower for name in NAMES_LIST)
     
     if is_pinged or is_named or random.random() < TEXT_REPLY_CHANCE:
-        if is_pinged:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [ПИНГ] Отвечаю на упоминание...")
-        
         async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
             await asyncio.sleep(random.uniform(0.2, 0.5))
-            reply = await ask_gemini_text(user_name, message.text, chat_memory)
+            # Отправляем в Gemini контекст ТОЛЬКО этого чата
+            reply = await ask_gemini_text(user_name, message.text, chat_memories[chat_id])
             if reply:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [ОТВЕТ] {reply}")
                 await message.reply(reply)
 
 # --- СТАРТ ---
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    print("--- Жиросик (PRO Edition) запущен и всё видит ---")
+    print("--- Жиросик (PRO Edition) запущен и разделяет чаты ---")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
