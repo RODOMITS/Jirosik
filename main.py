@@ -21,8 +21,8 @@ client = genai.Client(
 
 MODEL_ID = "gemini-2.0-flash-lite"
 NAMES_LIST = ["жиросик", "жиробас", "жирный"] 
-TEXT_REPLY_CHANCE = 0.1
-PHOTO_REPLY_CHANCE = 0.2
+TEXT_REPLY_CHANCE = 0.05
+PHOTO_REPLY_CHANCE = 0.1
 MAX_MEMORY = 15
 
 # ИСПРАВЛЕНО: Теперь это словари {chat_id: данные}
