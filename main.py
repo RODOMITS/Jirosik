@@ -64,7 +64,7 @@ async def ask_gemini_text(user_name: str, user_text: str, context: list):
         return response.text.strip().lower().replace(".", "")
     except Exception as e:
         logging.error(f"ошибка API: {e}")
-        return "чё-то сервак приуныл"
+        return "Ошибка при подключении к серверу."
 
 async def ask_gemini_vision(image_data: io.BytesIO, user_name: str, caption: str):
     vision_prompt = (
